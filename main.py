@@ -16,7 +16,9 @@ from copy import deepcopy
 
 
 def main(args):
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"device: {device}")
+    print(f'batch_size: {args.batch_size}')
 
     env = make_env(args.scenario)
     n_agents = env.n
@@ -144,7 +146,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scenario', default="simple_speaker_listener", type=str)
+    parser.add_argument('--scenario', default="simple_spread", type=str)
     parser.add_argument('--max_episodes', default=1e10, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
     parser.add_argument('--mode', default="train", type=str, help="train/eval")
