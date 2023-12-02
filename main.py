@@ -99,10 +99,10 @@ def main(args):
 
                     print("[Episode %05d] reward %6.4f" % (episode, accum_reward))
                     if args.tensorboard:
-                        writer.add_scalar(tag='agent/reward', global_step=episode, scalar_value=accum_reward.item())
-                        writer.add_scalar(tag='agent/reward_0', global_step=episode, scalar_value=rewardA.item())
-                        writer.add_scalar(tag='agent/reward_1', global_step=episode, scalar_value=rewardB.item())
-                        writer.add_scalar(tag='agent/reward_2', global_step=episode, scalar_value=rewardC.item())
+                        writer.add_scalar(tag='agent/reward', global_step=episode + args.model_episode, scalar_value=accum_reward.item())
+                        writer.add_scalar(tag='agent/reward_0', global_step=episode + args.model_episode, scalar_value=rewardA.item())
+                        writer.add_scalar(tag='agent/reward_1', global_step=episode + args.model_episode, scalar_value=rewardB.item())
+                        writer.add_scalar(tag='agent/reward_2', global_step=episode + args.model_episode, scalar_value=rewardC.item())
                         if c_loss and a_loss:
                             writer.add_scalars('agent/loss', global_step=episode,
                                                tag_scalar_dict={'actor': a_loss, 'critic': c_loss})
