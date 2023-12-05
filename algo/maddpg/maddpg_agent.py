@@ -26,14 +26,14 @@ def hard_update(target, source):
 
 
 class MADDPG:
-    def __init__(self, dim_obs, dim_act, n_agents, args):
+    def __init__(self, dim_obs: list, dim_act, n_agents, args):
         self.args = args
         self.mode = args.mode
         self.actors = []
         self.critics = []
-        self.actors = [Actor(dim_obs, dim_act) for _ in range(n_agents)]
+        self.actors = [Actor(dim_obs[i], dim_act) for i in range(n_agents)]
         # self.critic = Critic(n_agents, dim_obs, dim_act)
-        self.critics = [Critic(n_agents, dim_obs, dim_act) for _ in range(n_agents)]
+        self.critics = [Critic(n_agents, dim_obs[i], dim_act) for i in range(n_agents)]
 
         self.n_agents = n_agents
         self.n_states = dim_obs
@@ -137,7 +137,7 @@ class MADDPG:
             non_final_next_actions = (non_final_next_actions.transpose(0,1).contiguous())
             target_Q = torch.zeros(self.batch_size).type(FloatTensor)
             target_Q[non_final_mask] = self.critics_target[agent](
-                non_final_next_states.view(-1, self.n_agents * self.n_states), # .view(-1, self.n_agents * self.n_states)
+                non_final_next_states.view(-1, self.n_agents * self.n_states[agent]), # .view(-1, self.n_agents * self.n_states)
                 non_final_next_actions.view(-1, self.n_agents * self.n_actions)).squeeze() # .view(-1, self.n_agents * self.n_actions)
 
             # scale_reward: to scale reward in Q functions
@@ -177,18 +177,21 @@ class MADDPG:
         return sum(c_loss).item()/self.n_agents, sum(a_loss).item()/self.n_agents
 
     def choose_action(self, state, noisy=True):
-        obs = torch.from_numpy(np.stack(state)).float().to(device)
+        # obs = torch.from_numpy(np.stack(state)).float().to(device)
+        obs = state
         actions = torch.zeros(self.n_agents, self.n_actions)
         FloatTensor = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         for i in range(self.n_agents):
-            sb = obs[i].detach()
+            sb = torch.tensor(obs[i]).type(FloatTensor)
             act = self.actors[i](sb.unsqueeze(0)).squeeze()
             if noisy:
-                act += torch.from_numpy(np.random.randn(2) * self.var[i]).type(FloatTensor)
+                act += torch.from_numpy(np.random.randn(self.n_actions) * self.var[i]).type(FloatTensor)
 
+                # gammar
                 if self.episode_done > self.episodes_before_train and \
                         self.var[i] > 0.05:
                     self.var[i] *= 0.999998
+            # [a < -1.0 => a = -1.0, a > 1.0 => a = 1.0 for a in act]
             act = torch.clamp(act, -1.0, 1.0)
 
             actions[i, :] = act
