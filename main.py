@@ -1,10 +1,11 @@
+import sys
+sys.path.append('D:\CODE\python\Robot\MAProj')
 from env.make_env import make_env
 import argparse, datetime
 from tensorboardX import SummaryWriter
 import numpy as np
-import torch
-import os
-
+import torch,os
+from pettingzoo.mpe import simple_spread_v3, simple_crypto_v3
 from algo.bicnet.bicnet_agent import BiCNet
 from algo.commnet.commnet_agent import CommNet
 from algo.maddpg.maddpg_agent import MADDPG
@@ -16,14 +17,20 @@ from copy import deepcopy
 
 
 def main(args):
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    env = make_env(args.scenario)
-    n_agents = env.n
-    n_actions = env.world.dim_p
-    # env = ActionNormalizedEnv(env)
-    # env = ObsEnv(env)
-    n_states = env.observation_space[0].shape[0]
+    # env = make_env(args.scenario)
+    # n_agents = env.n
+    # n_actions = env.world.dim_p
+
+    # n_states = env.observation_space[0].shape[0]
+
+
+    env = simple_spread_v3.parallel_env(N = 3, render_mode="human", max_cycles = args.max_episodes)
+    # env = simple_crypto_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
+    env.reset(seed=42)
+    n_agents = 3
+    n_actions = env.action_spaces['agent_0'].n
+    n_states = env.observation_spaces['agent_0'].shape[0]
 
     torch.manual_seed(args.seed)
 
@@ -47,7 +54,9 @@ def main(args):
 
     while episode < args.max_episodes:
 
-        state = env.reset()
+        # state = env.reset()
+        states_dict, _ = env.reset()
+        state = [state for state in states_dict.values()]
 
         episode += 1
         step = 0
@@ -59,7 +68,13 @@ def main(args):
 
             if args.mode == "train":
                 action = model.choose_action(state, noisy=True)
-                next_state, reward, done, info = env.step(action)
+                actions_SN = [np.argmax(onehot) for onehot in action]
+                count_agent = len(env.agents)
+                actions_dict = {env.agents[i]: actions_SN[i] for i in range(env.max_num_agents)}
+                next_state, reward, done, info, ___ = env.step(actions_dict)
+                next_state = [state for state in next_state.values()]
+                reward = [state for state in reward.values()]
+                done = [state for state in done.values()]
 
                 step += 1
                 total_step += 1
@@ -97,10 +112,10 @@ def main(args):
 
                     print("[Episode %05d] reward %6.4f" % (episode, accum_reward))
                     if args.tensorboard:
-                        writer.add_scalar(tag='agent/reward', global_step=episode + args.model_episode, scalar_value=accum_reward.item())
-                        writer.add_scalar(tag='agent/reward_0', global_step=episode + args.model_episode, scalar_value=rewardA.item())
-                        writer.add_scalar(tag='agent/reward_1', global_step=episode + args.model_episode, scalar_value=rewardB.item())
-                        writer.add_scalar(tag='agent/reward_2', global_step=episode + args.model_episode, scalar_value=rewardC.item())
+                        writer.add_scalar(tag='agent/reward', global_step=episode, scalar_value=accum_reward.item())
+                        writer.add_scalar(tag='agent/reward_0', global_step=episode, scalar_value=rewardA.item())
+                        writer.add_scalar(tag='agent/reward_1', global_step=episode, scalar_value=rewardB.item())
+                        writer.add_scalar(tag='agent/reward_2', global_step=episode, scalar_value=rewardC.item())
                         if c_loss and a_loss:
                             writer.add_scalars('agent/loss', global_step=episode,
                                                tag_scalar_dict={'actor': a_loss, 'critic': c_loss})
@@ -116,8 +131,16 @@ def main(args):
                     # model.reset()
                     break
             elif args.mode == "eval":
-                action = model.choose_action(state, noisy=False)
-                next_state, reward, done, info = env.step(action)
+                action = model.choose_action(state, noisy=True)
+                actions_SN = [np.argmax(onehot) for onehot in action]
+                actions_dict = {env.agents[i]: actions_SN[i] for i in range(env.max_num_agents)}
+                next_state, reward, done, info, ___ = env.step(actions_dict)
+                next_state = [state for state in next_state.values()]
+                reward = [state for state in reward.values()]
+                done = [state for state in done.values()]
+
+                # action = model.choose_action(state, noisy=False)
+                # next_state, reward, done, info = env.step(action)
                 step += 1
                 total_step += 1
                 state = next_state
@@ -155,7 +178,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', default=777, type=int)
     parser.add_argument('--a_lr', default=0.0001, type=float)
     parser.add_argument('--c_lr', default=0.0001, type=float)
-    parser.add_argument('--batch_size', default=2048, type=int)
+    parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)
@@ -164,7 +187,7 @@ if __name__ == '__main__':
     parser.add_argument('--tensorboard', default=True, action="store_true")
     parser.add_argument("--save_interval", default=5000, type=int)
     parser.add_argument("--model_episode", default=100000, type=int)
-    parser.add_argument('--episode_before_train', default=100000, type=int)
+    parser.add_argument('--episode_before_train', default=1000, type=int)
     parser.add_argument('--log_dir', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
 
     args = parser.parse_args()
