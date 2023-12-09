@@ -4,7 +4,7 @@ from tensorboardX import SummaryWriter
 import numpy as np
 import torch
 import os
-
+from pettingzoo.mpe import simple_spread_v3, simple_crypto_v3, simple_adversary_v3
 from algo.bicnet.bicnet_agent import BiCNet
 from algo.commnet.commnet_agent import CommNet
 from algo.maddpg.maddpg_agent import MADDPG
@@ -18,12 +18,18 @@ from copy import deepcopy
 def main(args):
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    env = make_env(args.scenario)
-    n_agents = env.n
-    n_actions = env.world.dim_c
-    # env = ActionNormalizedEnv(env)
-    # env = ObsEnv(env)
-    n_states = [ob.shape[0] for ob in env.observation_space]
+    # env = make_env(args.scenario)
+    # n_agents = env.n
+    # n_actions = env.world.dim_c
+    # # env = ActionNormalizedEnv(env)
+    # # env = ObsEnv(env)
+    # n_states = [ob.shape[0] for ob in env.observation_space]
+
+    env = simple_adversary_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
+    env.reset(seed=42)
+    n_agents = 3
+    n_actions = 5
+    n_states = [8, 10, 10]
 
     torch.manual_seed(args.seed)
 
@@ -47,7 +53,9 @@ def main(args):
 
     while episode < args.max_episodes:
 
-        state = env.reset()
+        # state = env.reset()
+        states_dict, _ = env.reset()
+        state = [state for state in states_dict.values()]
 
         episode += 1
         step = 0
@@ -59,7 +67,14 @@ def main(args):
 
             if args.mode == "train":
                 action = model.choose_action(state, noisy=True)
-                next_state, reward, done, info = env.step(action)
+                # next_state, reward, done, info = env.step(action)
+                actions_SN = [np.argmax(onehot) for onehot in action]
+                count_agent = len(env.agents)
+                actions_dict = {env.agents[i]: actions_SN[i] for i in range(env.max_num_agents)}
+                next_state, reward, done, info, ___ = env.step(actions_dict)
+                next_state = [state for state in next_state.values()]
+                reward = [state for state in reward.values()]
+                done = [state for state in done.values()]
 
                 step += 1
                 total_step += 1
@@ -119,8 +134,16 @@ def main(args):
                     # model.reset()
                     break
             elif args.mode == "eval":
-                action = model.choose_action(state, noisy=False)
-                next_state, reward, done, info = env.step(action)
+                # action = model.choose_action(state, noisy=False)
+                # next_state, reward, done, info = env.step(action)
+                action = model.choose_action(state, noisy=True)
+                actions_SN = [np.argmax(onehot) for onehot in action]
+                actions_dict = {env.agents[i]: actions_SN[i] for i in range(env.max_num_agents)}
+                next_state, reward, done, info, ___ = env.step(actions_dict)
+                next_state = [state for state in next_state.values()]
+                reward = [state for state in reward.values()]
+                done = [state for state in done.values()]
+                
                 step += 1
                 total_step += 1
                 state = next_state
@@ -151,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_crypto", type=str)
     parser.add_argument('--max_episodes', default=5e+2, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    parser.add_argument('--mode', default="train", type=str, help="train/eval")
     parser.add_argument('--episode_length', default=50, type=int)
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--tau', default=0.001, type=float)
