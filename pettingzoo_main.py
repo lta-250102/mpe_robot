@@ -27,6 +27,8 @@ def main(args):
 
     if args.scenario == "simple_spread":
         env = simple_spread_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
+    if args.scenario == "simple_spread_50":
+        env = simple_spread_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes, N=50)
     elif args.scenario == "simple_crypto":
         env = simple_crypto_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
     elif args.scenario == "simple_adversary":
