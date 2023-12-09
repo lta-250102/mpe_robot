@@ -33,7 +33,7 @@ class MADDPG:
         self.critics = []
         self.actors = [Actor(dim_obs[i], dim_act) for i in range(n_agents)]
         # self.critic = Critic(n_agents, dim_obs, dim_act)
-        self.critics = [Critic(n_agents, dim_obs[i], dim_act) for i in range(n_agents)]
+        self.critics = [Critic(dim_obs, dim_act) for i in range(n_agents)]
 
         self.n_agents = n_agents
         self.n_states = dim_obs
@@ -120,11 +120,13 @@ class MADDPG:
             non_final_mask = BoolTensor(list(map(lambda s: s is not None,
                                                  batch.next_states)))
             # state_batch: batch_size x n_agents x dim_obs
-            state_batch = torch.stack(batch.states).type(FloatTensor)
+            state_batch = torch.stack([torch.cat(s, dim=0) for s in batch.states]).type(FloatTensor)
             action_batch = torch.stack(batch.actions).type(FloatTensor)
             reward_batch = torch.stack(batch.rewards).type(FloatTensor)
-            non_final_next_states = torch.stack([s for s in batch.next_states if s is not None]).type(FloatTensor)
-            whole_state = state_batch.view(self.batch_size, -1)
+            non_final_next_states = [s for s in batch.next_states if s is not None]
+            if len(non_final_next_states) == 0:
+                return None, None
+            whole_state = state_batch.view(self.batch_size, -1) # todo check
             whole_action = action_batch.view(self.batch_size, -1)
 
             self.actor_optimizer[agent].zero_grad()
@@ -132,12 +134,13 @@ class MADDPG:
             self.actors[agent].zero_grad()
             self.critics[agent].zero_grad()
             current_Q = self.critics[agent](whole_state, whole_action)
-            non_final_next_actions = [self.actors_target[i](non_final_next_states[:, i,:]) for i in range(self.n_agents)]
+            non_final_next_actions = [self.actors_target[i](torch.stack([s[i] for s in non_final_next_states]).type(FloatTensor)) for i in range(self.n_agents)]
             non_final_next_actions = torch.stack(non_final_next_actions)
             non_final_next_actions = (non_final_next_actions.transpose(0,1).contiguous())
             target_Q = torch.zeros(self.batch_size).type(FloatTensor)
             target_Q[non_final_mask] = self.critics_target[agent](
-                non_final_next_states.view(-1, self.n_agents * self.n_states[agent]), # .view(-1, self.n_agents * self.n_states)
+                # non_final_next_states.view(-1, self.n_agents * self.n_states[agent]), # .view(-1, self.n_agents * self.n_states)
+                torch.stack([torch.cat(s, dim=0) for s in non_final_next_states]).type(FloatTensor),
                 non_final_next_actions.view(-1, self.n_agents * self.n_actions)).squeeze() # .view(-1, self.n_agents * self.n_actions)
 
             # scale_reward: to scale reward in Q functions
@@ -145,7 +148,7 @@ class MADDPG:
             target_Q = (target_Q.unsqueeze(1) * self.GAMMA) + (
                 reward_batch[:, agent].unsqueeze(1)*0.1)# + reward_sum.unsqueeze(1) * 0.1
 
-            loss_Q = nn.MSELoss()(current_Q, target_Q.detach())
+            loss_Q = nn.MSELoss()(current_Q, target_Q.detach()) # todo check
             loss_Q.backward()
             torch.nn.utils.clip_grad_norm_(self.critics[agent].parameters(), 1)
             self.critic_optimizer[agent].step()
@@ -154,12 +157,13 @@ class MADDPG:
             self.critic_optimizer[agent].zero_grad()
             self.actors[agent].zero_grad()
             self.critics[agent].zero_grad()
-            state_i = state_batch[:, agent, :]
+            # state_i = state_batch[:, agent, :] # todo check
+            state_i = torch.stack([s[agent] for s in batch.states]).type(FloatTensor)
             action_i = self.actors[agent](state_i)
             ac = action_batch.clone()
             ac[:, agent, :] = action_i
             whole_action = ac.view(self.batch_size, -1)
-            actor_loss = -self.critics[agent](whole_state, whole_action).mean()
+            actor_loss = -self.critics[agent](whole_state, whole_action).mean() # todo check
             # actor_loss += (action_i ** 2).mean() * 1e-3
             actor_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.actors[agent].parameters(), 1)

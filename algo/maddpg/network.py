@@ -3,13 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Critic(nn.Module):
-	def __init__(self,n_agent,dim_observation,dim_action):
+	def __init__(self,dim_observations,dim_action):
 		super(Critic,self).__init__()
-		self.n_agent = n_agent
-		self.dim_observation = dim_observation
 		self.dim_action = dim_action
-		obs_dim = self.dim_observation * n_agent
-		act_dim = self.dim_action * n_agent
+		obs_dim = sum(dim_observations)
+		act_dim = self.dim_action * len(dim_observations)
 		
 		self.FC1 = nn.Linear(obs_dim,1024)
 		self.FC2 = nn.Linear(1024+act_dim,512)

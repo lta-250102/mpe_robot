@@ -98,10 +98,10 @@ def main(args):
 
 
                 if args.algo == "maddpg" or args.algo == "commnet":
-                    # obs = torch.from_numpy(np.stack(state)).float().to(device)
-                    # obs_ = torch.from_numpy(np.stack(next_state)).float().to(device)
-                    obs = state
-                    obs_ = next_state
+                    # obs = torch.from_numpy(np.concatenate(state)).float().to(device)
+                    # obs_ = torch.from_numpy(np.concatenate(next_state)).float().to(device)
+                    obs = [torch.tensor(s).float().to(device) for s in state]
+                    obs_ = [torch.tensor(s).float().to(device) for s in next_state]
                     if step != args.episode_length - 1:
                         next_obs = obs_
                     else:
@@ -182,7 +182,7 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_adversary", type=str)
     parser.add_argument('--max_episodes', default=5e+2, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    parser.add_argument('--mode', default="train", type=str, help="train/eval")
     parser.add_argument('--episode_length', default=50, type=int)
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--tau', default=0.001, type=float)
@@ -199,7 +199,7 @@ if __name__ == '__main__':
     parser.add_argument('--tensorboard', default=True, action="store_true")
     parser.add_argument("--save_interval", default=500, type=int)
     parser.add_argument("--model_episode", default=500, type=int)
-    parser.add_argument('--episode_before_train', default=100000, type=int)
+    parser.add_argument('--episode_before_train', default=0, type=int)
     parser.add_argument('--log_dir', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
 
     args = parser.parse_args()
