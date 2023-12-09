@@ -1,6 +1,7 @@
 from env.make_env import make_env
 import argparse, datetime
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
+import wandb
 import numpy as np
 import torch
 import os
@@ -26,9 +27,7 @@ def main(args):
     # n_states = [ob.shape[0] for ob in env.observation_space]
 
     if args.scenario == "simple_spread":
-        env = simple_spread_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
-    if args.scenario == "simple_spread_50":
-        env = simple_spread_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes, N=50)
+        env = simple_spread_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes, N=args.n_agents)
     elif args.scenario == "simple_crypto":
         env = simple_crypto_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
     elif args.scenario == "simple_adversary":
@@ -41,8 +40,11 @@ def main(args):
 
     torch.manual_seed(args.seed)
 
-    if args.tensorboard and args.mode == "train":
-        writer = SummaryWriter(log_dir='runs/' + args.algo + "/" + args.log_dir)
+    if args.wandb and args.mode == "train":
+        # writer = SummaryWriter(log_dir='runs/' + args.algo + "/" + args.log_dir)
+        wandb.init(
+            project=f"{args.algo}_{args.scenario}",
+        )
 
     if args.algo == "bicnet":
         model = BiCNet(n_states, n_actions, n_agents, args)
@@ -68,9 +70,10 @@ def main(args):
         episode += 1
         step = 0
         accum_reward = 0
-        rewardA = 0
-        rewardB = 0
-        rewardC = 0
+        # rewardA = 0
+        # rewardB = 0
+        # rewardC = 0
+        rewards = [0 for _ in range(n_agents)]
         while True:
 
             if args.mode == "train":
@@ -92,9 +95,10 @@ def main(args):
                 rew1 = 0
                 reward = rew1 + (np.array(reward, dtype=np.float32) / 100.)
                 accum_reward += sum(reward)
-                rewardA += reward[0]
-                rewardB += reward[1]
-                rewardC += reward[2]
+                # rewardA += reward[0]
+                # rewardB += reward[1]
+                # rewardC += reward[2]
+                rewards = [rewards[i] + reward[i] for i in range(n_agents)]
 
 
                 if args.algo == "maddpg" or args.algo == "commnet":
@@ -122,14 +126,20 @@ def main(args):
                     c_loss, a_loss = model.update(episode)
 
                     print("[Episode %05d] reward %6.4f" % (episode, accum_reward))
-                    if args.tensorboard:
-                        writer.add_scalar(tag='agent/reward', global_step=episode + args.model_episode, scalar_value=accum_reward.item())
-                        writer.add_scalar(tag='agent/reward_0', global_step=episode + args.model_episode, scalar_value=rewardA.item())
-                        writer.add_scalar(tag='agent/reward_1', global_step=episode + args.model_episode, scalar_value=rewardB.item())
-                        writer.add_scalar(tag='agent/reward_2', global_step=episode + args.model_episode, scalar_value=rewardC.item())
+                    # if args.tensorboard:
+                    #     writer.add_scalar(tag='agent/reward', global_step=episode + args.model_episode, scalar_value=accum_reward.item())
+                    #     writer.add_scalar(tag='agent/reward_0', global_step=episode + args.model_episode, scalar_value=rewardA.item())
+                    #     writer.add_scalar(tag='agent/reward_1', global_step=episode + args.model_episode, scalar_value=rewardB.item())
+                    #     writer.add_scalar(tag='agent/reward_2', global_step=episode + args.model_episode, scalar_value=rewardC.item())
+                    #     if c_loss and a_loss:
+                    #         writer.add_scalars('agent/loss', global_step=episode,
+                    #                            tag_scalar_dict={'actor': a_loss, 'critic': c_loss})
+                    if args.wandb:
+                        wandb.log({"reward": accum_reward}, step=episode + args.model_episode)
+                        for i in range(n_agents):
+                            wandb.log({"reward_" + str(i): rewards[i]}, step=episode + args.model_episode)
                         if c_loss and a_loss:
-                            writer.add_scalars('agent/loss', global_step=episode,
-                                               tag_scalar_dict={'actor': a_loss, 'critic': c_loss})
+                            wandb.log({"actor_loss": a_loss, "critic_loss": c_loss}, step=episode + args.model_episode)
 
                     if c_loss and a_loss:
                         print(" a_loss %3.2f c_loss %3.2f" % (a_loss, c_loss), end='')
@@ -164,26 +174,33 @@ def main(args):
                 rew1 = 0
                 reward = rew1 + (np.array(reward, dtype=np.float32) / 100.)
                 accum_reward += sum(reward)
-                rewardA += reward[0]
-                rewardB += reward[1]
-                rewardC += reward[2]
+
+                if args.wandb:
+                    wandb.log({"reward": accum_reward}, step=episode + args.model_episode)
+                    for i in range(n_agents):
+                        wandb.log({"reward_" + str(i): rewards[i]}, step=episode + args.model_episode)
+                    if c_loss and a_loss:
+                        wandb.log({"actor_loss": a_loss, "critic_loss": c_loss}, step=episode + args.model_episode)
 
                 if args.episode_length < step or (True in done):
                     print("[Episode %05d] reward %6.4f " % (episode, accum_reward))
                     env.reset()
                     break
 
-    if args.tensorboard:
-        writer.close()
+    # if args.tensorboard:
+    #     writer.close()
+    if args.wandb:
+        wandb.finish()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--scenario', default="simple_adversary", type=str)
-    parser.add_argument('--max_episodes', default=5e+2, type=int)
+    parser.add_argument('--n_agents', default=3, type=int)
+    parser.add_argument('--max_episodes', default=5e+5, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
     parser.add_argument('--mode', default="train", type=str, help="train/eval")
-    parser.add_argument('--episode_length', default=50, type=int)
+    parser.add_argument('--episode_length', default=50000, type=int)
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--tau', default=0.001, type=float)
     parser.add_argument('--gamma', default=0.95, type=float)
@@ -197,8 +214,9 @@ if __name__ == '__main__':
     parser.add_argument('--ou_sigma', default=0.2, type=float)
     parser.add_argument('--epsilon_decay', default=10000, type=int)
     parser.add_argument('--tensorboard', default=True, action="store_true")
-    parser.add_argument("--save_interval", default=500, type=int)
-    parser.add_argument("--model_episode", default=500, type=int)
+    parser.add_argument('--wandb', default=True, action="store_true")
+    parser.add_argument("--save_interval", default=5000, type=int)
+    parser.add_argument("--model_episode", default=0, type=int)
     parser.add_argument('--episode_before_train', default=0, type=int)
     parser.add_argument('--log_dir', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
 
