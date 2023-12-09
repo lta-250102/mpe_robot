@@ -4,13 +4,16 @@ cloudpickle==1.2.2
 future==0.18.2
 gym==0.10.0
 idna==2.9
-numpy==1.18.4
+numpy
 protobuf==3.11.3
 pyglet==1.5.0
 requests==2.23.0
-scipy==1.4.1
+scipy
 six==1.14.0
 tensorboardX==2.0
---find-link https://download.pytorch.org/whl/cu121
-torch==2.1.0
+# --find-link https://download.pytorch.org/whl/cu121
+# torch==2.1.0
 urllib3==1.25.9
+pettingzoo==1.24.2
+wandb==0.16.1
+pygame
