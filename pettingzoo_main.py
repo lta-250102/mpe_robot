@@ -4,7 +4,7 @@ from tensorboardX import SummaryWriter
 import numpy as np
 import torch
 import os
-from pettingzoo.mpe import simple_spread_v3, simple_crypto_v3
+from pettingzoo.mpe import simple_spread_v3, simple_crypto_v3, simple_adversary_v3
 from algo.bicnet.bicnet_agent import BiCNet
 from algo.commnet.commnet_agent import CommNet
 from algo.maddpg.maddpg_agent import MADDPG
@@ -25,11 +25,17 @@ def main(args):
     # # env = ObsEnv(env)
     # n_states = [ob.shape[0] for ob in env.observation_space]
 
-    env = simple_crypto_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
+    if args.scenario == "simple_spread":
+        env = simple_spread_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
+    elif args.scenario == "simple_crypto":
+        env = simple_crypto_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
+    elif args.scenario == "simple_adversary":
+        env = simple_adversary_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
     env.reset(seed=42)
-    n_agents = 3
-    n_actions = 4
-    n_states = [4, 8, 8]
+    n_agents = len(env.possible_agents)
+    n_actions = list(env.action_spaces.values())[0].n
+    n_states = [ob.shape[0] for ob in env.observation_spaces.values()]
+
 
     torch.manual_seed(args.seed)
 
@@ -171,7 +177,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scenario', default="simple_crypto", type=str)
+    parser.add_argument('--scenario', default="simple_adversary", type=str)
     parser.add_argument('--max_episodes', default=5e+2, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
     parser.add_argument('--mode', default="eval", type=str, help="train/eval")
