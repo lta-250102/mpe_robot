@@ -1,6 +1,5 @@
 from env.make_env import make_env
 import argparse, datetime
-# from tensorboardX import SummaryWriter
 import wandb
 import numpy as np
 import torch
@@ -17,21 +16,14 @@ from copy import deepcopy
 
 
 def main(args):
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # env = make_env(args.scenario)
-    # n_agents = env.n
-    # n_actions = env.world.dim_c
-    # # env = ActionNormalizedEnv(env)
-    # # env = ObsEnv(env)
-    # n_states = [ob.shape[0] for ob in env.observation_space]
+    print(f'device: {device}')
 
     if args.scenario == "simple_spread":
-        env = simple_spread_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes, N=args.n_agents)
+        env = simple_spread_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes, N=args.n_agents)
     elif args.scenario == "simple_crypto":
-        env = simple_crypto_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
+        env = simple_crypto_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
     elif args.scenario == "simple_adversary":
-        env = simple_adversary_v3.parallel_env(render_mode="human", max_cycles = args.max_episodes)
+        env = simple_adversary_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
     env.reset(seed=42)
     n_agents = len(env.possible_agents)
     n_actions = list(env.action_spaces.values())[0].n
@@ -41,9 +33,10 @@ def main(args):
     torch.manual_seed(args.seed)
 
     if args.wandb and args.mode == "train":
-        # writer = SummaryWriter(log_dir='runs/' + args.algo + "/" + args.log_dir)
         wandb.init(
-            project=f"{args.algo}_{args.scenario}",
+            project="robot_mpe",
+            entity='diogenes-student',
+            name=f"{args.algo}_{args.scenario}_{args.n_agents}",
         )
 
     if args.algo == "bicnet":
@@ -63,22 +56,17 @@ def main(args):
 
     while episode < args.max_episodes:
 
-        # state = env.reset()
         states_dict, _ = env.reset()
         state = [state for state in states_dict.values()]
 
         episode += 1
         step = 0
         accum_reward = 0
-        # rewardA = 0
-        # rewardB = 0
-        # rewardC = 0
         rewards = [0 for _ in range(n_agents)]
         while True:
 
             if args.mode == "train":
                 action = model.choose_action(state, noisy=True)
-                # next_state, reward, done, info = env.step(action)
                 actions_SN = [np.argmax(onehot) for onehot in action]
                 count_agent = len(env.agents)
                 actions_dict = {env.agents[i]: actions_SN[i] for i in range(env.max_num_agents)}
@@ -91,19 +79,13 @@ def main(args):
                 total_step += 1
                 reward = np.array(reward)
 
-                # rew1 = reward_from_state(next_state)
                 rew1 = 0
                 reward = rew1 + (np.array(reward, dtype=np.float32) / 100.)
                 accum_reward += sum(reward)
-                # rewardA += reward[0]
-                # rewardB += reward[1]
-                # rewardC += reward[2]
                 rewards = [rewards[i] + reward[i] for i in range(n_agents)]
 
 
                 if args.algo == "maddpg" or args.algo == "commnet":
-                    # obs = torch.from_numpy(np.concatenate(state)).float().to(device)
-                    # obs_ = torch.from_numpy(np.concatenate(next_state)).float().to(device)
                     obs = [torch.tensor(s).float().to(device) for s in state]
                     obs_ = [torch.tensor(s).float().to(device) for s in next_state]
                     if step != args.episode_length - 1:
@@ -126,14 +108,6 @@ def main(args):
                     c_loss, a_loss = model.update(episode)
 
                     print("[Episode %05d] reward %6.4f" % (episode, accum_reward))
-                    # if args.tensorboard:
-                    #     writer.add_scalar(tag='agent/reward', global_step=episode + args.model_episode, scalar_value=accum_reward.item())
-                    #     writer.add_scalar(tag='agent/reward_0', global_step=episode + args.model_episode, scalar_value=rewardA.item())
-                    #     writer.add_scalar(tag='agent/reward_1', global_step=episode + args.model_episode, scalar_value=rewardB.item())
-                    #     writer.add_scalar(tag='agent/reward_2', global_step=episode + args.model_episode, scalar_value=rewardC.item())
-                    #     if c_loss and a_loss:
-                    #         writer.add_scalars('agent/loss', global_step=episode,
-                    #                            tag_scalar_dict={'actor': a_loss, 'critic': c_loss})
                     if args.wandb:
                         wandb.log({"reward": accum_reward}, step=episode + args.model_episode)
                         for i in range(n_agents):
@@ -149,11 +123,8 @@ def main(args):
                         model.save_model(episode)
 
                     env.reset()
-                    # model.reset()
                     break
             elif args.mode == "eval":
-                # action = model.choose_action(state, noisy=False)
-                # next_state, reward, done, info = env.step(action)
                 action = model.choose_action(state, noisy=True)
                 actions_SN = [np.argmax(onehot) for onehot in action]
                 actions_dict = {env.agents[i]: actions_SN[i] for i in range(env.max_num_agents)}
@@ -170,7 +141,6 @@ def main(args):
                 time.sleep(0.02)
                 env.render()
 
-                # rew1 = reward_from_state(next_state)
                 rew1 = 0
                 reward = rew1 + (np.array(reward, dtype=np.float32) / 100.)
                 accum_reward += sum(reward)
@@ -187,8 +157,6 @@ def main(args):
                     env.reset()
                     break
 
-    # if args.tensorboard:
-    #     writer.close()
     if args.wandb:
         wandb.finish()
 
@@ -197,17 +165,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--scenario', default="simple_adversary", type=str)
     parser.add_argument('--n_agents', default=3, type=int)
-    parser.add_argument('--max_episodes', default=5e+5, type=int)
+    parser.add_argument('--max_episodes', default=1e10, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
     parser.add_argument('--mode', default="train", type=str, help="train/eval")
-    parser.add_argument('--episode_length', default=50000, type=int)
+    parser.add_argument('--episode_length', default=50, type=int)
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--tau', default=0.001, type=float)
     parser.add_argument('--gamma', default=0.95, type=float)
     parser.add_argument('--seed', default=777, type=int)
     parser.add_argument('--a_lr', default=0.0001, type=float)
     parser.add_argument('--c_lr', default=0.0001, type=float)
-    parser.add_argument('--batch_size', default=2048, type=int)
+    parser.add_argument('--batch_size', default=512, type=int)
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)
@@ -217,7 +185,7 @@ if __name__ == '__main__':
     parser.add_argument('--wandb', default=True, action="store_true")
     parser.add_argument("--save_interval", default=5000, type=int)
     parser.add_argument("--model_episode", default=0, type=int)
-    parser.add_argument('--episode_before_train', default=0, type=int)
+    parser.add_argument('--episode_before_train', default=1000, type=int)
     parser.add_argument('--log_dir', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
 
     args = parser.parse_args()
