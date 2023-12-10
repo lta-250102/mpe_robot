@@ -33,6 +33,7 @@ class Scenario(BaseScenario):
             agent.adversary = True if i < num_adversaries else False
             agent.speaker = True if i == 2 else False
             agent.movable = False
+            agent.size = 0.15
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
@@ -55,6 +56,7 @@ class Scenario(BaseScenario):
         color_list = [np.zeros(world.dim_c) for i in world.landmarks]
         for i, color in enumerate(color_list):
             color[i] += 1
+            color[-1] += 1 
         for color, landmark in zip(color_list, world.landmarks):
             landmark.color = color
         # set goal landmark

@@ -2,3 +2,5 @@
 *.pth
 /runs
 *.ipynb
+*draft*
+/wandb

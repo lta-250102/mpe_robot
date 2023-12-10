@@ -27,6 +27,7 @@ def hard_update(target, source):
 
 class MADDPG:
     def __init__(self, dim_obs, dim_act, n_agents, args):
+        self.dir = f"{args.algo}_{args.scenario}_{args.n_agents}"
         self.args = args
         self.mode = args.mode
         self.actors = []
@@ -75,16 +76,16 @@ class MADDPG:
             path_flag = True
             for idx in range(self.n_agents):
                 path_flag = path_flag \
-                            and (os.path.exists("trained_model/maddpg/actor["+ str(idx) + "]_"
+                            and (os.path.exists(f"trained_model/{self.dir}/actor["+ str(idx) + "]_"
                                                 +str(self.args.model_episode)+".pth")) \
-                            and (os.path.exists("trained_model/maddpg/critic["+ str(idx) + "]_"
+                            and (os.path.exists(f"trained_model/{self.dir}/critic["+ str(idx) + "]_"
                                                 +str(self.args.model_episode)+".pth"))
 
             if path_flag:
                 print("load model!")
                 for idx in range(self.n_agents):
-                    actor = torch.load("trained_model/maddpg/actor["+ str(idx) + "]_"+str(self.args.model_episode)+".pth")
-                    critic = torch.load("trained_model/maddpg/critic["+ str(idx) + "]_"+str(self.args.model_episode)+".pth")
+                    actor = torch.load(f"trained_model/{self.dir}/actor["+ str(idx) + "]_"+str(self.args.model_episode)+".pth")
+                    critic = torch.load(f"trained_model/{self.dir}/critic["+ str(idx) + "]_"+str(self.args.model_episode)+".pth")
                     self.actors[idx].load_state_dict(actor.state_dict())
                     self.critics[idx].load_state_dict(critic.state_dict())
 
@@ -92,13 +93,13 @@ class MADDPG:
         self.critics_target = deepcopy(self.critics)
 
     def save_model(self, episode):
-        if not os.path.exists("./trained_model/" + str(self.args.algo) + "/"):
-            os.mkdir("./trained_model/" + str(self.args.algo) + "/")
+        if not os.path.exists("./trained_model/" + self.dir + "/"):
+            os.mkdir("./trained_model/" + self.dir + "/")
         for i in range(self.n_agents):
             torch.save(self.actors[i],
-                       'trained_model/maddpg/actor[' + str(i) + ']' + '_' + str(episode) + '.pth')
+                       f'trained_model/{self.dir}/actor[' + str(i) + ']' + '_' + str(episode) + '.pth')
             torch.save(self.critics[i],
-                       'trained_model/maddpg/critic[' + str(i) + ']' + '_' + str(episode) + '.pth')
+                       f'trained_model/{self.dir}/critic[' + str(i) + ']' + '_' + str(episode) + '.pth')
 
     def update(self,i_episode):
 
@@ -117,8 +118,7 @@ class MADDPG:
 
         for agent in range(self.n_agents):
 
-            non_final_mask = BoolTensor(list(map(lambda s: s is not None,
-                                                 batch.next_states)))
+            non_final_mask = BoolTensor(list(map(lambda s: s is not None, batch.next_states)))
             # state_batch: batch_size x n_agents x dim_obs
             state_batch = torch.stack(batch.states).type(FloatTensor)
             action_batch = torch.stack(batch.actions).type(FloatTensor)
@@ -186,9 +186,11 @@ class MADDPG:
             if noisy:
                 act += torch.from_numpy(np.random.randn(2) * self.var[i]).type(FloatTensor)
 
+                # gammar
                 if self.episode_done > self.episodes_before_train and \
                         self.var[i] > 0.05:
                     self.var[i] *= 0.999998
+            # [a < -1.0 => a = -1.0, a > 1.0 => a = 1.0 for a in act]
             act = torch.clamp(act, -1.0, 1.0)
 
             actions[i, :] = act

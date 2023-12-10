@@ -182,6 +182,7 @@ class MultiAgentEnv(gym.Env):
                     # agent.action.u[0] += action[0][0] - action[0][1]
                     # agent.action.u[1] += action[0][2] - action[0][3]
                 else:
+                    assert type(action[0]) == np.ndarray and len(action[0]) == self.world.dim_p, 'Action is not of expected shape'
                     agent.action.u = action[0]
             sensitivity = 5.0
             if agent.accel is not None:
@@ -194,6 +195,7 @@ class MultiAgentEnv(gym.Env):
                 agent.action.c = np.zeros(self.world.dim_c)
                 agent.action.c[action[0]] = 1.0
             else:
+                assert type(action[0]) == np.ndarray and len(action[0]) == self.world.dim_c, 'Action is not of expected shape'
                 agent.action.c = action[0]
             action = action[1:]
         # make sure we used all elements of action
