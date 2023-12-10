@@ -18,24 +18,27 @@ from copy import deepcopy
 def main(args):
     print(f'device: {device}')
 
+    render_mode = None if args.mode == "train" else "human"
+
     if args.scenario == "simple_spread":
-        env = simple_spread_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes, N=args.n_agents)
+        env = simple_spread_v3.parallel_env(render_mode=render_mode, max_cycles = args.max_episodes, N=args.n_agents)
     elif args.scenario == "simple_crypto":
-        env = simple_crypto_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+        env = simple_crypto_v3.parallel_env(render_mode=render_mode, max_cycles = args.max_episodes)
     elif args.scenario == "simple_adversary":
-        env = simple_adversary_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+        env = simple_adversary_v3.parallel_env(render_mode=render_mode, max_cycles = args.max_episodes)
     elif args.scenario == "simple_push":
-        env = simple_push_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+        env = simple_push_v3.parallel_env(render_mode=render_mode, max_cycles = args.max_episodes)
     elif args.scenario == "simple_reference":
-        env = simple_reference_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+        env = simple_reference_v3.parallel_env(render_mode=render_mode, max_cycles = args.max_episodes)
     elif args.scenario == "simple_tag":
-        env = simple_tag_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+        env = simple_tag_v3.parallel_env(render_mode=render_mode, max_cycles = args.max_episodes)
     # elif args.scenario == "simple_world_comm": # error
-    #     env = simple_world_comm_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+    #     env = simple_world_comm_v3.parallel_env(render_mode=render_mode, max_cycles = args.max_episodes)
     env.reset(seed=42)
     n_agents = len(env.possible_agents)
     n_actions = list(env.action_spaces.values())[0].n
-    n_states = [ob.shape[0] for ob in env.observation_spaces.values()]
+    # n_states = [ob.shape[0] for ob in env.observation_spaces.values()]
+    n_states = list(env.observation_spaces.values())[0].shape[0]
 
 
     torch.manual_seed(args.seed)
@@ -153,13 +156,6 @@ def main(args):
                 reward = rew1 + (np.array(reward, dtype=np.float32) / 100.)
                 accum_reward += sum(reward)
 
-                if args.wandb:
-                    wandb.log({"reward": accum_reward}, step=episode + args.model_episode)
-                    for i in range(n_agents):
-                        wandb.log({"reward_" + str(i): rewards[i]}, step=episode + args.model_episode)
-                    if c_loss and a_loss:
-                        wandb.log({"actor_loss": a_loss, "critic_loss": c_loss}, step=episode + args.model_episode)
-
                 if args.episode_length < step or (True in done):
                     print("[Episode %05d] reward %6.4f " % (episode, accum_reward))
                     env.reset()
@@ -171,8 +167,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scenario', default="simple_crypto", type=str, help="simple_spread/simple_crypto/simple_adversary/simple_push/simple_reference/simple_tag")
-    parser.add_argument('--n_agents', default=3, type=int)
+    parser.add_argument('--scenario', default="simple_spread", type=str, help="simple_spread/simple_crypto/simple_adversary/simple_push/simple_reference/simple_tag")
+    parser.add_argument('--n_agents', default=51, type=int)
     parser.add_argument('--max_episodes', default=1e10, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
     parser.add_argument('--mode', default="train", type=str, help="train/eval")
@@ -183,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', default=777, type=int)
     parser.add_argument('--a_lr', default=0.0001, type=float)
     parser.add_argument('--c_lr', default=0.0001, type=float)
-    parser.add_argument('--batch_size', default=512, type=int)
+    parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)
