@@ -4,7 +4,7 @@ import wandb
 import numpy as np
 import torch
 import os
-from pettingzoo.mpe import simple_spread_v3, simple_crypto_v3, simple_adversary_v3
+from pettingzoo.mpe import simple_spread_v3, simple_crypto_v3, simple_adversary_v3, simple_push_v3, simple_reference_v3, simple_tag_v3, simple_world_comm_v3
 from algo.bicnet.bicnet_agent import BiCNet
 from algo.commnet.commnet_agent import CommNet
 from algo.maddpg.maddpg_agent import MADDPG
@@ -24,6 +24,14 @@ def main(args):
         env = simple_crypto_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
     elif args.scenario == "simple_adversary":
         env = simple_adversary_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+    elif args.scenario == "simple_push":
+        env = simple_push_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+    elif args.scenario == "simple_reference":
+        env = simple_reference_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+    elif args.scenario == "simple_tag":
+        env = simple_tag_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
+    # elif args.scenario == "simple_world_comm": # error
+    #     env = simple_world_comm_v3.parallel_env(render_mode=None, max_cycles = args.max_episodes)
     env.reset(seed=42)
     n_agents = len(env.possible_agents)
     n_actions = list(env.action_spaces.values())[0].n
@@ -35,7 +43,7 @@ def main(args):
     if args.wandb and args.mode == "train":
         wandb.init(
             project="robot_mpe",
-            entity='diogenes-student',
+            # entity='diogenes-student',
             name=f"{args.algo}_{args.scenario}_{args.n_agents}",
         )
 
@@ -163,7 +171,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scenario', default="simple_adversary", type=str)
+    parser.add_argument('--scenario', default="simple_crypto", type=str, help="simple_spread/simple_crypto/simple_adversary/simple_push/simple_reference/simple_tag")
     parser.add_argument('--n_agents', default=3, type=int)
     parser.add_argument('--max_episodes', default=1e10, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
@@ -183,7 +191,7 @@ if __name__ == '__main__':
     parser.add_argument('--epsilon_decay', default=10000, type=int)
     parser.add_argument('--tensorboard', default=True, action="store_true")
     parser.add_argument('--wandb', default=True, action="store_true")
-    parser.add_argument("--save_interval", default=5000, type=int)
+    parser.add_argument("--save_interval", default=50, type=int)
     parser.add_argument("--model_episode", default=0, type=int)
     parser.add_argument('--episode_before_train', default=1000, type=int)
     parser.add_argument('--log_dir', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
