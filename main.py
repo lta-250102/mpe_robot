@@ -75,8 +75,8 @@ def main(args):
                 if args.algo == "maddpg" or args.algo == "commnet":
                     # obs = torch.from_numpy(np.stack(state)).float().to(device)
                     # obs_ = torch.from_numpy(np.stack(next_state)).float().to(device)
-                    obs = state
-                    obs_ = next_state
+                    obs = [torch.from_numpy(s).float().to(device) for s in state]
+                    obs_ = [torch.from_numpy(s).float().to(device) for s in next_state]
                     if step != args.episode_length - 1:
                         next_obs = obs_
                     else:
@@ -127,7 +127,7 @@ def main(args):
 
                 # rew1 = reward_from_state(next_state)
                 rew1 = 0
-                reward = rew1 + (np.array(reward, dtype=np.float32) / 100.)
+                reward = rew1 + (np.array(reward, dtype=np.float32) / 10.)
                 accum_reward += sum(reward)
 
                 if args.episode_length < step or (True in done):
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', default=777, type=int)
     parser.add_argument('--a_lr', default=0.0001, type=float)
     parser.add_argument('--c_lr', default=0.0001, type=float)
-    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--batch_size', default=512, type=int)
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)

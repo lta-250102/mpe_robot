@@ -183,7 +183,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', default=777, type=int)
     parser.add_argument('--a_lr', default=0.0001, type=float)
     parser.add_argument('--c_lr', default=0.0001, type=float)
-    parser.add_argument('--batch_size', default=512, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--wandb', default=True, action="store_true")
     parser.add_argument("--save_interval", default=50, type=int)
     parser.add_argument("--model_episode", default=0, type=int)
-    parser.add_argument('--episode_before_train', default=1000, type=int)
+    parser.add_argument('--episode_before_train', default=200, type=int)
     parser.add_argument('--log_dir', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
 
     args = parser.parse_args()

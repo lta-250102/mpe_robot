@@ -239,7 +239,7 @@ class MADDPG:
             ac = action_batch.clone()
             ac[:, agent, :] = action_i
             whole_action = ac.view(self.batch_size, -1)
-            actor_loss = -self.critics[agent](whole_state, whole_action).mean() # todo check
+            actor_loss = -self.critics[agent](whole_state, whole_action).mean() # next action of current agent
             # actor_loss += (action_i ** 2).mean() * 1e-3
             actor_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.actors[agent].parameters(), 1)
