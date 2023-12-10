@@ -1,10 +1,10 @@
 from env.make_env import make_env
 import argparse, datetime
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 import numpy as np
 import torch
 import os
-
+import wandb
 from algo.bicnet.bicnet_agent import BiCNet
 from algo.commnet.commnet_agent import CommNet
 from algo.maddpg.maddpg_agent import MADDPG
@@ -16,10 +16,6 @@ from copy import deepcopy
 
 
 def main(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"device: {device}")
-    print(f'batch_size: {args.batch_size}')
-
     env = make_env(args.scenario)
     n_agents = env.n
     n_actions = env.world.dim_c
@@ -29,8 +25,12 @@ def main(args):
 
     torch.manual_seed(args.seed)
 
-    if args.tensorboard and args.mode == "train":
-        writer = SummaryWriter(log_dir='runs/' + args.algo + "/" + args.log_dir)
+    if args.wandb and args.mode == "train":
+        wandb.init(
+            project="robot_mpe",
+            # entity='diogenes-student',
+            name=f"{args.algo}_{args.scenario}_{args.n_agents}",
+        )
 
     if args.algo == "bicnet":
         model = BiCNet(n_states, n_actions, n_agents, args)
@@ -54,9 +54,7 @@ def main(args):
         episode += 1
         step = 0
         accum_reward = 0
-        rewardA = 0
-        rewardB = 0
-        rewardC = 0
+        rewards = [0 for _ in range(n_agents)]
         while True:
 
             if args.mode == "train":
@@ -69,11 +67,9 @@ def main(args):
 
                 # rew1 = reward_from_state(next_state)
                 rew1 = 0
-                reward = rew1 + (np.array(reward, dtype=np.float32) / 100.)
+                reward = rew1 + (np.array(reward, dtype=np.float32) / 10.)
                 accum_reward += sum(reward)
-                rewardA += reward[0]
-                rewardB += reward[1]
-                rewardC += reward[2]
+                rewards = [rewards[i] + reward[i] for i in range(n_agents)]
 
 
                 if args.algo == "maddpg" or args.algo == "commnet":
@@ -101,14 +97,12 @@ def main(args):
                     c_loss, a_loss = model.update(episode)
 
                     print("[Episode %05d] reward %6.4f" % (episode, accum_reward))
-                    if args.tensorboard:
-                        writer.add_scalar(tag='agent/reward', global_step=episode + args.model_episode, scalar_value=accum_reward.item())
-                        writer.add_scalar(tag='agent/reward_0', global_step=episode + args.model_episode, scalar_value=rewardA.item())
-                        writer.add_scalar(tag='agent/reward_1', global_step=episode + args.model_episode, scalar_value=rewardB.item())
-                        writer.add_scalar(tag='agent/reward_2', global_step=episode + args.model_episode, scalar_value=rewardC.item())
+                    if args.wandb:
+                        wandb.log({"reward": accum_reward}, step=episode + args.model_episode)
+                        for i in range(n_agents):
+                            wandb.log({"reward_" + str(i): rewards[i]}, step=episode + args.model_episode)
                         if c_loss and a_loss:
-                            writer.add_scalars('agent/loss', global_step=episode,
-                                               tag_scalar_dict={'actor': a_loss, 'critic': c_loss})
+                            wandb.log({"actor_loss": a_loss, "critic_loss": c_loss}, step=episode + args.model_episode)
 
                     if c_loss and a_loss:
                         print(" a_loss %3.2f c_loss %3.2f" % (a_loss, c_loss), end='')
@@ -135,25 +129,23 @@ def main(args):
                 rew1 = 0
                 reward = rew1 + (np.array(reward, dtype=np.float32) / 100.)
                 accum_reward += sum(reward)
-                rewardA += reward[0]
-                rewardB += reward[1]
-                rewardC += reward[2]
 
                 if args.episode_length < step or (True in done):
                     print("[Episode %05d] reward %6.4f " % (episode, accum_reward))
                     env.reset()
                     break
 
-    if args.tensorboard:
-        writer.close()
+    if args.wandb:
+        wandb.finish()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--scenario', default="simple_crypto", type=str)
-    parser.add_argument('--max_episodes', default=5e+2, type=int)
+    parser.add_argument('--n_agents', default=3, type=int)
+    parser.add_argument('--max_episodes', default=5e10, type=int)
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    parser.add_argument('--mode', default="train", type=str, help="train/eval")
     parser.add_argument('--episode_length', default=50, type=int)
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--tau', default=0.001, type=float)
@@ -161,16 +153,17 @@ if __name__ == '__main__':
     parser.add_argument('--seed', default=777, type=int)
     parser.add_argument('--a_lr', default=0.0001, type=float)
     parser.add_argument('--c_lr', default=0.0001, type=float)
-    parser.add_argument('--batch_size', default=2048, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)
     parser.add_argument('--ou_sigma', default=0.2, type=float)
     parser.add_argument('--epsilon_decay', default=10000, type=int)
     parser.add_argument('--tensorboard', default=True, action="store_true")
-    parser.add_argument("--save_interval", default=500, type=int)
-    parser.add_argument("--model_episode", default=500, type=int)
-    parser.add_argument('--episode_before_train', default=100000, type=int)
+    parser.add_argument('--wandb', default=True, action="store_true")
+    parser.add_argument("--save_interval", default=5000, type=int)
+    parser.add_argument("--model_episode", default=0, type=int)
+    parser.add_argument('--episode_before_train', default=1000, type=int)
     parser.add_argument('--log_dir', default=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
 
     args = parser.parse_args()
